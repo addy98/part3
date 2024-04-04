@@ -21,7 +21,7 @@ app.use(morgan((tokens, req, res) => {
         tokens.content(req, res)
       ].join(' ')
 }))
-morgan.token('content', (req, res) => JSON.stringify(req.body))
+morgan.token('content', req => JSON.stringify(req.body))
 
 
 // ROUTE REGISTRY
@@ -78,8 +78,8 @@ app.put('/api/contacts/:id', (request, response, next) => {
   const { name, number } = request.body
 
   Contact.findByIdAndUpdate(
-    request.params.id, 
-    { name, number }, 
+    request.params.id,
+    { name, number },
     { new: true, runValidators: true, context: 'query' }
   )
   .then(updatedContact => {
@@ -91,7 +91,7 @@ app.put('/api/contacts/:id', (request, response, next) => {
 // REGISTER ROUTE FOR DELETING CONTACT FROM PHONEBOOK
 app.delete('/api/contacts/:id', (request, response, next) => {
   Contact.findByIdAndDelete(request.params.id)
-    .then(result => {
+    .then(() => {
       response.status(204).end()
     })
     .catch(error => next(error))
