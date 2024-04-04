@@ -1,13 +1,16 @@
+require('dotenv').config()
+
 const express = require('express')
 const morgan = require('morgan')
 const cors = require('cors')
+const Contact = require('./models/contact')
 
 const app = express()
 
+// MORGAN CONSOLE LOGGING
+app.use(express.static('dist'))
 app.use(express.json())
 app.use(cors())
-app.use(express.static('dist'))
-
 app.use(morgan((tokens, req, res) => {
     return [
         tokens.method(req, res),
@@ -20,63 +23,41 @@ app.use(morgan((tokens, req, res) => {
 }))
 morgan.token('content', (req, res) => JSON.stringify(req.body))
 
-let contacts = [
-    { 
-        id: 1,
-        name: "Arto Hellas", 
-        number: "040-123456"
-      },
-      { 
-        id: 2,
-        name: "Ada Lovelace", 
-        number: "39-44-5323523"
-      },
-      { 
-        id: 3,
-        name: "Dan Abramov", 
-        number: "12-43-234345"
-      },
-      { 
-        id: 4,
-        name: "Mary Poppendieck", 
-        number: "39-23-6423122"
-      }
-  ]
 
-app.get('/', (request, response) => {
-    response.send('<h1>Hello Pizza!</h1>')
-})
+// ROUTE REGISTRY
 
+// REGISTER ROUTE FOR API/DB INFO
 app.get('/api/info', (request, response) => {
+  Contact.find({}).then(result => {
+    console.log(result.length)
     response.send(`
-        <div>Phonebook has info for ${contacts.length} people</div>
+        <div>Phonebook has info for ${result.length} people</div>
         <br>
         <div>${new Date()}</div>`)
+  })
 })
 
+// REGISTER ROUTE FOR FETCHING ALL CONTACTS
 app.get('/api/contacts', (request, response) => {
+  Contact.find({}).then(contacts => {
     response.json(contacts)
+  })
 })
 
-app.get('/api/contacts/:id', (request, response) => {
-    const id = Number(request.params.id)
-    const note = contacts.find(note => note.id === id)
-  
-    if (note) {
-      response.json(note)
-    } else {
-      response.status(404).end()
-    }
+// REGISTER ROUTE FOR SINGULAR CONTACT
+app.get('/api/contacts/:id', (request, response, next) => {
+    Contact.findById(request.params.id)
+      .then(contact => {
+        if (contact) {
+          response.json(contact)
+        } else {
+          response.status(404).end()
+        }
+      })
+      .catch(error => next(error))
 })
 
-const generateId = () => {
-    let random = Math.floor(Math.random()*100);
-    if (contacts.map(contact => contact.id).includes(random)) {
-        random = Math.floor(Math.random()*100);
-    }
-    return random;
-}
-
+// REGISTER ROUTE FOR CREATING NEW CONTACT
 app.post('/api/contacts', (request, response) => {
   const body = request.body
 
@@ -84,31 +65,66 @@ app.post('/api/contacts', (request, response) => {
     return response.status(400).json({ 
         error: 'content missing' 
     })
-  } else if (contacts.map(contact => contact.name).includes(body.name)) {
-    return response.status(400).json({ 
-        error: 'name must be unique'
-    })
   }
 
-  const contact = {
+  const contact = new Contact({
     name: body.name,
     number: body.number,
-    id: generateId(),
+  })
+
+  contact.save().then(savedContact => {
+    response.json(savedContact)
+  })
+})
+
+// REGISTER ROUTE FOR UPDATING EXISTING CONTACT
+app.put('/api/contacts/:id', (request, response, next) => {
+  const body = request.body
+  const contact = {
+    name: body.name,
+    number: body.number
   }
 
-  contacts = contacts.concat(contact)
-
-  response.json(contact)
+  Contact.findByIdAndUpdate(request.params.id, contact, { new: true })
+    .then(updatedContact => {
+      response.json(updatedContact)
+    })
+    .catch(error => next(error))
 })
 
-app.delete('/api/contacts/:id', (request, response) => {
-    const id = Number(request.params.id)
-    contacts = contacts.filter(contact => contact.id !== id)
-
-    response.status(204).end()
+// REGISTER ROUTE FOR DELETING CONTACT FROM PHONEBOOK
+app.delete('/api/contacts/:id', (request, response, next) => {
+  Contact.findByIdAndDelete(request.params.id)
+    .then(result => {
+      response.status(204).end()
+    })
+    .catch(error => next(error))
 })
 
-const PORT = process.env.PORT || 3001
+// END ROUTES
+
+
+const PORT = process.env.PORT
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`)
 })
+
+
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: 'unknown endpoint' })
+}
+// handler of requests with unknown endpoint
+app.use(unknownEndpoint)
+
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message)
+
+  if (error.name === 'CastError') {
+    return response.status(400).send({ error: 'malformatted id' })
+  } 
+
+  next(error)
+}
+// this has to be the last loaded middleware, also all the routes should be registered before this!
+app.use(errorHandler)
