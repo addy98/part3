@@ -2,6 +2,5 @@ POST https://phonebook-addison.fly.dev/api/contacts
 Content-Type: application/json
 
 {
-    "name": "ryan",
-    "number": "500000111444"
+    "name": "ryan"
 }

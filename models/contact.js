@@ -15,8 +15,22 @@ mongoose.connect(url)
 
 // establish contact schema
 const contactSchema = new mongoose.Schema({
-  name: String,
-  number: Number,
+  name: {
+    type: String,
+    minLength: 5,
+    required: true
+  },
+  number: {
+    type: String,
+    minLength: 8,
+    validate: {
+      validator: function(v) {
+        return /\d{2,3}-\d+/.test(v);
+      },
+      message: props => `${props.value} is not a valid phone number!`
+    },
+    required: true
+  }
 })
 
 // transform returned documents with configurable options in setter of schema
